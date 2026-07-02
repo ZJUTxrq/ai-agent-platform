@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,8 @@ from runtime_service.runtime.context import RuntimeContext  # noqa: E402
 from runtime_service.runtime.runtime_request_resolver import (  # noqa: E402
     ResolvedRuntimeSettings,
 )
+
+os.environ["REQUIREMENT_REVIEW_KNOWLEDGE_MCP_ENABLED"] = "false"
 
 requirement_review_graph = importlib.import_module(
     "runtime_service.services.requirement_review_agent.graph"
@@ -96,20 +99,59 @@ def test_requirement_review_agent_build_system_prompt_uses_runtime_project_id(
     }
 
 
-def test_requirement_review_agent_required_tools_include_persistence() -> None:
-    tools = requirement_review_graph._resolve_required_tools(_settings())
-    async_tools = asyncio.run(
+def test_requirement_review_agent_required_tools_include_knowledge_and_service_tools(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "_resolve_service_config_for_run",
+        lambda: "service-config",
+    )
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "get_requirement_review_knowledge_tools",
+        lambda service_config: ["knowledge_tool"],
+    )
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "build_requirement_review_agent_tools",
+        lambda service_config: ["service_tool"],
+    )
+
+    resolved_tools = requirement_review_graph._resolve_required_tools(_settings())
+
+    assert resolved_tools == ["knowledge_tool", "service_tool"]
+
+
+def test_requirement_review_agent_aresolve_required_tools_include_knowledge_and_service_tools(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "_resolve_service_config_for_run",
+        lambda: "service-config",
+    )
+
+    async def fake_knowledge_tools(service_config: Any) -> list[str]:
+        del service_config
+        return ["knowledge_tool"]
+
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "aget_requirement_review_knowledge_tools",
+        fake_knowledge_tools,
+    )
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "build_requirement_review_agent_tools",
+        lambda service_config: ["service_tool"],
+    )
+
+    resolved_tools = asyncio.run(
         requirement_review_graph._aresolve_required_tools(_settings())
     )
 
-    assert [tool.name for tool in tools] == [
-        "persist_requirement_review_result",
-        "read_multimodal_attachments",
-    ]
-    assert [tool.name for tool in async_tools] == [
-        "persist_requirement_review_result",
-        "read_multimodal_attachments",
-    ]
+    assert resolved_tools == ["knowledge_tool", "service_tool"]
 
 
 def test_requirement_review_result_schema_validates_structured_output() -> None:
@@ -166,5 +208,6 @@ def test_requirement_review_prompt_includes_structured_output_contract() -> None
     assert "最终回答必须先输出面向用户阅读的 Markdown 评审报告" in prompt
     assert "结构化结果（供入库接口使用）" in prompt
     assert "persist_requirement_review_result" in prompt
+    assert "query_project_knowledge" in prompt
     assert "major_risks" in prompt
     assert "generation_policy_reason" in prompt

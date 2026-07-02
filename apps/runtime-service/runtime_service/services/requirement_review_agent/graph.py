@@ -14,6 +14,10 @@ from runtime_service.runtime.runtime_request_resolver import (
 from runtime_service.services.requirement_review_agent.prompts import (
     build_requirement_review_system_prompt,
 )
+from runtime_service.services.requirement_review_agent.knowledge_mcp import (
+    aget_requirement_review_knowledge_tools,
+    get_requirement_review_knowledge_tools,
+)
 from runtime_service.services.requirement_review_agent.middleware import (
     RequirementReviewDocumentPersistenceMiddleware,
 )
@@ -41,7 +45,10 @@ BACKEND = build_filesystem_backend(
     root_dir=get_service_root(),
     virtual_mode=True,
 )
-SERVICE_TOOLS = build_requirement_review_agent_tools(REQUIREMENT_REVIEW_CONFIG)
+SERVICE_TOOLS = [
+    *get_requirement_review_knowledge_tools(REQUIREMENT_REVIEW_CONFIG),
+    *build_requirement_review_agent_tools(REQUIREMENT_REVIEW_CONFIG),
+]
 REQUIREMENT_REVIEW_MIDDLEWARE = [
     MultimodalMiddleware(
         parser_model_id=REQUIREMENT_REVIEW_CONFIG.multimodal_parser_model_id,
@@ -80,13 +87,21 @@ def _resolve_service_config_for_run() -> RequirementReviewAgentConfig:
 def _resolve_required_tools(
     _settings: ResolvedRuntimeSettings,
 ) -> list[object]:
-    return build_requirement_review_agent_tools(_resolve_service_config_for_run())
+    service_config = _resolve_service_config_for_run()
+    return [
+        *get_requirement_review_knowledge_tools(service_config),
+        *build_requirement_review_agent_tools(service_config),
+    ]
 
 
 async def _aresolve_required_tools(
     _settings: ResolvedRuntimeSettings,
 ) -> list[object]:
-    return build_requirement_review_agent_tools(_resolve_service_config_for_run())
+    service_config = _resolve_service_config_for_run()
+    return [
+        *(await aget_requirement_review_knowledge_tools(service_config)),
+        *build_requirement_review_agent_tools(service_config),
+    ]
 
 
 graph = create_deep_agent(

@@ -56,7 +56,10 @@ BACKEND = build_filesystem_backend(
     root_dir=get_service_root(),
     virtual_mode=True,
 )
-SERVICE_TOOLS = build_test_case_service_tools(TEST_CASE_SERVICE_CONFIG)
+SERVICE_TOOLS = [
+    *get_test_case_knowledge_tools(TEST_CASE_SERVICE_CONFIG),
+    *build_test_case_service_tools(TEST_CASE_SERVICE_CONFIG),
+]
 TEST_CASE_MIDDLEWARE = [
     MultimodalMiddleware(
         parser_model_id=TEST_CASE_SERVICE_CONFIG.multimodal_parser_model_id,

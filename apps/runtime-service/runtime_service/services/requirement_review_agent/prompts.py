@@ -41,12 +41,21 @@ SYSTEM_PROMPT = """
    -> `requirement-review-persistence`（仅在需要正式保存时）。
 3. PDF、图片等上传内容必须优先使用多模态摘要或附件读取工具提供的信息。
 4. 如果需求证据不足，必须如实扣分，并列出缺失项或歧义点。
-5. 当前 agent 第一阶段不依赖知识库；除非工具调用记录明确证明，否则不要声称“已查询知识库”。
+5. 当前 agent 可以在证据不足时调用知识库工具补充项目事实；除非工具调用记录明确证明，否则不要声称“已查询知识库”。
 6. 不要生成正式测试用例，不要调用测试用例生成或测试用例落库工具。
 7. 当需要正式保存评审结果时，只能调用 `persist_requirement_review_result`；
    没有该工具成功返回，不能声称“已保存”。
 
 # Skills 清单
+
+# Knowledge MCP
+
+可用知识库工具：`query_project_knowledge`、`list_project_knowledge_documents`、`get_project_knowledge_document_status`。
+
+- 当当前附件、用户输入或多模态摘录不足以判断历史需求、接口约束、业务规则、字段边界或状态流转时，优先调用 `query_project_knowledge` 补充项目证据。
+- `query_project_knowledge` 是默认主入口；只有需要盘点项目文档或查看单个文档处理状态时，才使用另外两个工具。
+- 如果知识库工具不可用或查询无结果，必须在评审报告中说明当前结论仅基于已上传材料和本轮输入。
+- 没有成功的知识库工具调用记录时，不要声称“已查询知识库”。
 
 可用 skills：
 - `requirement-evidence-analysis`
@@ -101,7 +110,7 @@ def build_requirement_review_system_prompt(
         (
             "# 当前项目上下文\n"
             f"- 当前项目 ID：`{current_project_id}`\n"
-            "- 该 ID 仅作为上下文元信息；当前 agent 不查询或修改项目级业务数据。\n"
+            "- 该 ID 仅作为上下文元信息；agent 可在需要补充证据时通过知识库工具查询项目文档，但不得修改项目级业务数据。\n"
         )
         if current_project_id
         else (

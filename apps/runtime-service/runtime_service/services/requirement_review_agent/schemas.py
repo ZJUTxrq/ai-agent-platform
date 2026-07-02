@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -13,7 +14,12 @@ DEFAULT_REQUIREMENT_REVIEW_MODEL_ID = "deepseek_chat"
 DEFAULT_MULTIMODAL_DETAIL_MODE = False
 DEFAULT_MULTIMODAL_DETAIL_TEXT_MAX_CHARS = 2000
 DEFAULT_REQUIREMENT_REVIEW_PERSISTENCE_ENABLED = True
+DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_ENABLED = True
+DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_URL = "http://127.0.0.1:8621/sse"
+DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_TIMEOUT_SECONDS = 30
+DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS = 300
 CONFIG_KEY_PREFIX = "requirement_review"
+CONFIG_ENV_PREFIX = CONFIG_KEY_PREFIX.upper()
 RequirementQualityGate = Literal["pass", "conditional", "blocked"]
 RequirementGenerationPolicy = Literal[
     "allow_generation",
@@ -31,6 +37,12 @@ class RequirementReviewAgentConfig:
     multimodal_detail_text_max_chars: int = DEFAULT_MULTIMODAL_DETAIL_TEXT_MAX_CHARS
     default_model_id: str = DEFAULT_REQUIREMENT_REVIEW_MODEL_ID
     persistence_enabled: bool = DEFAULT_REQUIREMENT_REVIEW_PERSISTENCE_ENABLED
+    knowledge_mcp_enabled: bool = DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_ENABLED
+    knowledge_mcp_url: str = DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_URL
+    knowledge_timeout_seconds: int = DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_TIMEOUT_SECONDS
+    knowledge_sse_read_timeout_seconds: int = (
+        DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS
+    )
 
 
 class RequirementReviewDimensionScores(BaseModel):
@@ -125,6 +137,14 @@ def _parse_int(value: Any, default: int) -> int:
         return default
 
 
+def _read_env_default(name: str) -> str | None:
+    value = os.getenv(name)
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
 def build_requirement_review_agent_config(
     config: RunnableConfig,
 ) -> RequirementReviewAgentConfig:
@@ -154,6 +174,34 @@ def build_requirement_review_agent_config(
         persistence_enabled=_parse_bool(
             read_private_config("persistence_enabled"),
             DEFAULT_REQUIREMENT_REVIEW_PERSISTENCE_ENABLED,
+        ),
+        knowledge_mcp_enabled=_parse_bool(
+            read_private_config("knowledge_mcp_enabled"),
+            _parse_bool(
+                _read_env_default(f"{CONFIG_ENV_PREFIX}_KNOWLEDGE_MCP_ENABLED"),
+                DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_ENABLED,
+            ),
+        ),
+        knowledge_mcp_url=str(
+            read_private_config("knowledge_mcp_url")
+            or _read_env_default(f"{CONFIG_ENV_PREFIX}_KNOWLEDGE_MCP_URL")
+            or DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_URL
+        ),
+        knowledge_timeout_seconds=_parse_int(
+            read_private_config("knowledge_timeout_seconds"),
+            _parse_int(
+                _read_env_default(f"{CONFIG_ENV_PREFIX}_KNOWLEDGE_TIMEOUT_SECONDS"),
+                DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_TIMEOUT_SECONDS,
+            ),
+        ),
+        knowledge_sse_read_timeout_seconds=_parse_int(
+            read_private_config("knowledge_sse_read_timeout_seconds"),
+            _parse_int(
+                _read_env_default(
+                    f"{CONFIG_ENV_PREFIX}_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS"
+                ),
+                DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS,
+            ),
         ),
     )
 
