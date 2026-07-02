@@ -1,0 +1,18 @@
+FROM langchain/langgraph-api:3.13
+
+# Test/dev image for runtime-service.
+# Keep uv/pip available here; the production Dockerfile still removes them.
+
+ADD ./ /deps/runtime-service
+
+RUN for dep in /deps/*; do \
+        echo "Installing $dep"; \
+        if [ -d "$dep" ]; then \
+            (cd "$dep" && PYTHONDONTWRITEBYTECODE=1 uv pip install --system --no-cache-dir -c /api/constraints.txt -e .); \
+        fi; \
+    done
+
+RUN PYTHONDONTWRITEBYTECODE=1 uv pip install --system --no-cache-dir --no-deps -e /api
+RUN PYTHONDONTWRITEBYTECODE=1 uv pip install --system --no-cache-dir pytest
+
+WORKDIR /deps/runtime-service

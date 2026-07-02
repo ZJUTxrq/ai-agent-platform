@@ -1,0 +1,3 @@
+# Temporarily disabled during repository restructuring.
+# Re-enable after the apps/* layout and shared tooling strategy are finalized.
+repos: []

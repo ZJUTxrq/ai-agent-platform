@@ -1,0 +1,45 @@
+services:
+  runtime-service:
+    volumes:
+      - ../apps/runtime-service:/deps/runtime-service
+
+  runtime-service-test:
+    profiles:
+      - test
+    image: "${RUNTIME_SERVICE_TEST_IMAGE:-aitestlab-runtime-service-test:local}"
+    build:
+      context: ../apps/runtime-service
+      dockerfile: deploy/Dockerfile.test
+    working_dir: /deps/runtime-service
+    environment:
+      APP_ENV: "${APP_ENV:-test}"
+      MODEL_ID: "${MODEL_ID:-}"
+      MULTIMODAL_PARSER_MODEL_ID: "${MULTIMODAL_PARSER_MODEL_ID:-gpt_5.4-ccr}"
+      INTERACTION_DATA_SERVICE_URL: "http://interaction-data-service:8081"
+      INTERACTION_DATA_SERVICE_TOKEN: "${INTERACTION_DATA_SERVICE_TOKEN:-}"
+      INTERACTION_DATA_SERVICE_TIMEOUT_SECONDS: "${INTERACTION_DATA_SERVICE_TIMEOUT_SECONDS:-10}"
+    volumes:
+      - ../apps/runtime-service:/deps/runtime-service
+    entrypoint: ["python", "-m", "pytest"]
+    command: ["runtime_service/tests", "-q"]
+
+  runtime-web:
+    image: node:22
+    working_dir: /app
+    command: >
+      sh -c "corepack enable &&
+             corepack prepare pnpm@10.5.1 --activate &&
+             pnpm install &&
+             pnpm dev --hostname 0.0.0.0"
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      NEXT_PUBLIC_API_URL: "http://localhost:8123"
+      NEXT_PUBLIC_ASSISTANT_ID: "requirement_review_agent"
+    volumes:
+      - ../apps/runtime-web:/app
+      - runtime-web-node-modules:/app/node_modules
+
+volumes:
+  runtime-web-node-modules:
