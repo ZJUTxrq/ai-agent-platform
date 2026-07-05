@@ -12,9 +12,17 @@ const routes = [
   "/workspace/chat",
   "/workspace/sql-agent",
   "/workspace/threads",
+  "/workspace/projects/demo-project/knowledge/documents",
+  "/workspace/projects/demo-project/knowledge/retrieval",
+  "/workspace/requirement-review",
+  "/workspace/requirement-review-results",
+  "/workspace/requirement-review-documents",
   "/workspace/testcase/generate",
   "/workspace/testcase/cases",
   "/workspace/testcase/documents",
+  "/workspace/testcase-v2/generate",
+  "/workspace/testcase-v2/cases",
+  "/workspace/testcase-v2/documents",
   "/workspace/audit",
 ];
 

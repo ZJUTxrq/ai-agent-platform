@@ -27,7 +27,6 @@ test_case_schemas_v2 = importlib.import_module(
 
 _EXPECTED_SKILLS = {
     "requirement-analysis",
-    "requirement-review-gate",
     "test-strategy",
     "test-case-design",
     "quality-review",

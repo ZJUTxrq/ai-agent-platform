@@ -76,7 +76,6 @@
 服务私有 skills 位于 [skills](/Users/bytedance/PycharmProjects/my_best/AITestLab/apps/runtime-service/runtime_service/services/test_case_service_v2/skills)：
 
 - `requirement-analysis`
-- `requirement-review-gate`
 - `test-strategy`
 - `test-case-design`
 - `quality-review`
@@ -87,8 +86,6 @@
 当前行为约束：
 
 - 有附件时优先基于 `multimodal_summary` 和 `read_multimodal_attachments`
-- `requirement-analysis` 后先进入 `requirement-review-gate`，从测试视角输出需求质量分数和门禁结论
-- `requirement-review-gate` 判定 `blocked` 时，不进入正式用例生成，先输出待澄清问题和补充资料建议
 - 无附件业务主题生成时，先 `read_file(requirement-analysis)`，再 `query_project_knowledge`
 - 知识库用于补充查询，不是所有需求评审或用例生成的硬前置；当前输入证据已经足够时，不机械补查知识库
 
