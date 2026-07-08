@@ -446,3 +446,6 @@ build/
 .env.*
 !.env.example
 !.env.template
+
+# Agent runtime artifacts (review conversation transcripts)
+**/conversation_history/
