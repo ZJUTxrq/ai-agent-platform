@@ -28,6 +28,8 @@
   文档即时持久化中间件
 - `knowledge_query_guard_middleware.py`
   无附件业务主题生成场景的强制知识查询 guard
+- `requirement_gate.py`
+  需求评审门禁：按项目最新评审结论拦截或约束用例生成
 - `tools.py`
   正式测试资产持久化工具
 - `skills/`
@@ -57,6 +59,7 @@
 | `test_case_v2_knowledge_mcp_url` | `http://127.0.0.1:8621/sse` | LightRAG MCP SSE 地址；默认本地一键启动脚本拉起的 repo-local `apps/lightrag-service` 使用该默认口径，若 `runtime-service` 跑在容器中则改用 `http://host.docker.internal:8621/sse` |
 | `test_case_v2_knowledge_timeout_seconds` | `30` | MCP 连接超时 |
 | `test_case_v2_knowledge_sse_read_timeout_seconds` | `300` | SSE 读超时 |
+| `test_case_v2_requirement_gate_enabled` | `True` | 是否启用需求评审门禁 |
 
 ## LightRAG MCP 适配
 
@@ -70,6 +73,21 @@
 
 `runtime_service` 侧不处理 LightRAG 的 `workspace`、`storage_root`、项目目录映射等内部语义。
 如果 future LightRAG 增加通用 metadata-aware retrieval 能力，服务侧优先学习 `project_id + metadata_filters`，而不是学习 `workspace_key`。
+
+## 需求评审门禁
+
+`requirement_gate.py` 在生成类请求（命中用例生成意图或携带附件）到达模型前，
+按 `RuntimeContext.project_id` 查询 `interaction-data-service` 中该项目**最新一条**需求评审结果
+（`GET /api/requirement-review-service/results?project_id=...&limit=1`），并按 `generation_policy` 处理：
+
+- `block_generation`：硬拦截，直接返回评审门禁说明（含评分、原因、缺失项、改进建议），不调用模型
+- `allow_generation_with_assumptions`：放行，但把评审 `assumptions` 注入 system prompt，要求生成结果显式列出这些假设
+- `allow_generation`：放行，注入"门禁已通过"上下文
+- 项目无评审记录：放行，但要求输出注明"未经过需求评审门禁"
+- `interaction-data-service` 未配置或查询失败：静默放行（lenient），不阻断链路
+
+已知局限与演进方向：当前按"项目最新一条评审记录"匹配，适合单需求串行流程；
+多需求并行场景的精确匹配需要前端透传 `review_result_id` 显式引用（target state），内容指纹匹配作为兜底。
 
 ## Skills 与行为
 

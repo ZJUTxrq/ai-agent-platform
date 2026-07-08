@@ -35,6 +35,9 @@ import type { ChatResolvedTarget, ChatWorkspaceDisplay, ChatWorkspaceFeatures } 
 type InspectorTabKey = 'overview' | 'tasks' | 'files' | 'history'
 type FollowPauseReason = 'manualScroll' | 'contextDrawer' | 'runtimeOptions' | 'messageMeta'
 const CHAT_DRAFT_STORAGE_PREFIX = 'pw:chat:draft'
+// 一次性接力文案：其它页面（如需求评审接力）写入后跳转过来，
+// 无论落在哪个线程，聊天框都会预填该文案并清除存储。
+const CHAT_KICKOFF_STORAGE_PREFIX = 'pw:chat:kickoff'
 
 const props = withDefaults(
   defineProps<{
@@ -42,6 +45,7 @@ const props = withDefaults(
     display: ChatWorkspaceDisplay
     features?: ChatWorkspaceFeatures
     initialThreadId?: string
+    initialBlank?: boolean
     sourceNote?: string
     contextNotice?: string
     allowResetTarget?: boolean
@@ -49,6 +53,7 @@ const props = withDefaults(
   {
     features: () => ({}),
     initialThreadId: '',
+    initialBlank: false,
     sourceNote: '',
     contextNotice: '',
     allowResetTarget: false
@@ -102,9 +107,46 @@ const draftRunOptions = reactive({
 const workspace = useChatWorkspace({
   projectId: computed(() => activeProjectId.value || ''),
   target: computed(() => props.target),
-  initialThreadId: computed(() => props.initialThreadId?.trim() || '')
+  initialThreadId: computed(() => props.initialThreadId?.trim() || ''),
+  initialBlank: computed(() => props.initialBlank)
 })
 const attachmentState = useChatAttachments()
+
+// initialBlank：入口要求直接落在空白对话上（例如评审页接力跳转带草稿）。
+// 线程列表加载中时等加载完成再切，否则会被"自动选中最近会话"覆盖；
+// 用 watch 而非初始化读取，因为路由复用组件实例时 prop 变化不会触发重新挂载。
+const pendingInitialBlank = ref(false)
+
+async function consumePendingBlank() {
+  if (!pendingInitialBlank.value || workspace.loadingThreads.value) {
+    return
+  }
+  const started = await workspace.startNewThread()
+  if (started) {
+    pendingInitialBlank.value = false
+  }
+}
+
+watch(
+  // fullPath 参与依赖：同一入口重复跳转（如接力链接带时间戳）时也要重新触发空白切换。
+  () => [props.initialBlank && !props.initialThreadId?.trim(), route.fullPath] as const,
+  ([wantBlank]) => {
+    if (wantBlank) {
+      pendingInitialBlank.value = true
+      void consumePendingBlank()
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  () => workspace.loadingThreads.value,
+  (loading) => {
+    if (!loading) {
+      void consumePendingBlank()
+    }
+  }
+)
 
 const currentProject = activeProject
 const renderMessages = computed(() => workspace.messages.value)
@@ -558,6 +600,49 @@ watch(
   () => composerInput.value,
   (nextValue) => {
     writeComposerDraft(composerDraftKey.value, nextValue)
+  }
+)
+
+const kickoffStorageKey = computed(() => {
+  const projectId = activeProjectId.value.trim()
+  const targetId = props.target?.resolvedTargetId?.trim() || ''
+  if (!projectId || !targetId) {
+    return ''
+  }
+  return `${CHAT_KICKOFF_STORAGE_PREFIX}:${projectId}:${targetId}`
+})
+
+const pendingKickoffText = ref('')
+
+watch(
+  // fullPath 参与依赖：同一页面被重复跳入时（带时间戳参数）也要重新消费 kickoff。
+  () => [kickoffStorageKey.value, route.fullPath] as const,
+  ([storageKey]) => {
+    if (typeof window === 'undefined' || !storageKey) {
+      return
+    }
+    const text = window.localStorage.getItem(storageKey) || ''
+    if (text.trim()) {
+      window.localStorage.removeItem(storageKey)
+      pendingKickoffText.value = text
+    }
+  },
+  { immediate: true }
+)
+
+watch(
+  // 等线程落地（列表与详情都加载完）后再填入，避免被自动选中线程的草稿加载覆盖。
+  () => [
+    workspace.loadingThreads.value,
+    workspace.loadingThreadDetail.value,
+    pendingKickoffText.value
+  ] as const,
+  ([loadingThreads, loadingThreadDetail, kickoffText]) => {
+    if (loadingThreads || loadingThreadDetail || !kickoffText) {
+      return
+    }
+    pendingKickoffText.value = ''
+    composerInput.value = kickoffText
   }
 )
 

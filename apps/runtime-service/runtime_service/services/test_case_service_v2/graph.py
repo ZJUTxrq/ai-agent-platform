@@ -26,6 +26,9 @@ from runtime_service.services.test_case_service_v2.middleware import (
 from runtime_service.services.test_case_service_v2.prompts import (
     build_test_case_system_prompt,
 )
+from runtime_service.services.test_case_service_v2.requirement_gate import (
+    TestCaseRequirementGateMiddleware,
+)
 from runtime_service.services.test_case_service_v2.schemas import (
     TestCaseServiceConfig,
     build_test_case_service_config,
@@ -67,6 +70,7 @@ TEST_CASE_MIDDLEWARE = [
         detail_text_max_chars=TEST_CASE_SERVICE_CONFIG.multimodal_detail_text_max_chars,
     ),
     TestCaseDocumentPersistenceMiddleware(TEST_CASE_SERVICE_CONFIG),
+    TestCaseRequirementGateMiddleware(TEST_CASE_SERVICE_CONFIG),
     TestCaseKnowledgeQueryGuardMiddleware(),
     ToolArgumentAliasMiddleware(),
     ToolRuntimeContextSanitizerMiddleware(),

@@ -230,7 +230,10 @@ export function useChatThreadWorkspace(options: UseChatThreadWorkspaceOptions) {
     }
   }
 
-  async function loadThreadList(preferredThreadId = '') {
+  async function loadThreadList(
+    preferredThreadId = '',
+    listOptions: { blankLanding?: boolean } = {}
+  ) {
     const projectId = options.projectId.value.trim()
     const target = options.target.value
 
@@ -263,6 +266,15 @@ export function useChatThreadWorkspace(options: UseChatThreadWorkspaceOptions) {
       threadItems.value = Array.isArray(payload.items) ? payload.items : []
 
       const explicitPreferredThreadId = preferredThreadId.trim() || options.activeThreadId.value.trim()
+
+      // 空白落地（如评审页接力跳转）：只加载列表数据，不自动选中最近会话，
+      // 避免旧线程被短暂激活后又把视图拽回去。
+      if (listOptions.blankLanding && !explicitPreferredThreadId) {
+        clearActiveThreadState()
+        options.streamDetailInfo.value = '已切换到空白对话。发送第一条消息时，系统才会创建新的 thread。'
+        return
+      }
+
       const candidateThreadIds = Array.from(
         new Set(
           [explicitPreferredThreadId, ...threadItems.value.map((item) => item.thread_id)]

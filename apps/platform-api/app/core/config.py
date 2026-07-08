@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     operations_artifacts_dir: str = ".runtime/operations-artifacts"
     operations_artifact_storage_backend: str = "local"
     operations_artifact_retention_hours: int = Field(default=72, ge=1, le=24 * 365)
+    operations_pipeline_run_timeout_seconds: float = Field(default=600.0, gt=0, le=1800)
     operations_artifact_cleanup_batch_size: int = Field(default=100, ge=1, le=1000)
     observability_metrics_top_paths_limit: int = Field(default=10, ge=1, le=50)
 

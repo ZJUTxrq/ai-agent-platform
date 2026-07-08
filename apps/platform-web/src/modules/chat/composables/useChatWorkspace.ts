@@ -16,6 +16,7 @@ type UseChatWorkspaceOptions = {
   projectId: ComputedRef<string>
   target: ComputedRef<ChatResolvedTarget | null>
   initialThreadId: Ref<string>
+  initialBlank?: Ref<boolean>
 }
 
 export function useChatWorkspace(options: UseChatWorkspaceOptions) {
@@ -144,7 +145,12 @@ export function useChatWorkspace(options: UseChatWorkspaceOptions) {
     [() => options.projectId.value, () => options.target.value?.resolvedTargetId],
     async () => {
       threadWorkspace.resetForContextChange(options.initialThreadId.value)
-      await Promise.all([loadRuntimeCatalog(), threadWorkspace.loadThreadList(options.initialThreadId.value)])
+      await Promise.all([
+        loadRuntimeCatalog(),
+        threadWorkspace.loadThreadList(options.initialThreadId.value, {
+          blankLanding: Boolean(options.initialBlank?.value) && !options.initialThreadId.value.trim()
+        })
+      ])
     },
     { immediate: true }
   )

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.adapters.interaction_data import InteractionDataClient
 from app.adapters.langgraph import GraphParameterSchemaProvider, LangGraphAssistantsClient
+from app.adapters.langgraph.runtime_gateway_upstream import LangGraphRuntimeGatewayUpstream
 from app.core.config import Settings
 from app.modules.assistants.application import AssistantsService
 from app.modules.operations.application.artifacts import LocalOperationArtifactStore
@@ -19,6 +20,9 @@ from app.modules.operations.application.execution import (
     OperationExecutorRegistry,
 )
 from app.modules.operations.application.heartbeat import OperationWorkerHeartbeatReporter
+from app.modules.operations.application.review_generate_pipeline import (
+    RequirementReviewAndGenerateExecutor,
+)
 from app.modules.operations.application.ports import (
     OperationDispatcherProtocol,
     OperationQueueConsumerProtocol,
@@ -142,6 +146,15 @@ def build_operations_service(
     )
 
 
+def _build_pipeline_runtime_upstream(settings: Settings) -> LangGraphRuntimeGatewayUpstream:
+    return LangGraphRuntimeGatewayUpstream(
+        base_url=settings.langgraph_upstream_url,
+        api_key=settings.langgraph_upstream_api_key,
+        timeout_seconds=settings.operations_pipeline_run_timeout_seconds,
+        forwarded_headers={},
+    )
+
+
 def build_operation_worker(
     *,
     settings: Settings,
@@ -212,6 +225,9 @@ def build_operation_worker(
                 kind="knowledge.documents.clear",
                 action="clear",
                 service=project_knowledge_service,
+            ),
+            RequirementReviewAndGenerateExecutor(
+                upstream=_build_pipeline_runtime_upstream(settings),
             ),
         )
     )

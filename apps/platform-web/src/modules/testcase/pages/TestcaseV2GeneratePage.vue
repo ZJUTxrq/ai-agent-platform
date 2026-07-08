@@ -33,6 +33,8 @@ const initialThreadId = computed(() =>
   typeof route.query.threadId === 'string' && route.query.threadId.trim() ? route.query.threadId.trim() : ''
 )
 
+const initialBlank = computed(() => !initialThreadId.value && route.query.blank === '1')
+
 watchEffect(() => {
   if (!activeProjectId.value) {
     return
@@ -102,6 +104,7 @@ watch(
       v-else
       :target="testcaseTarget"
       :initial-thread-id="initialThreadId"
+      :initial-blank="initialBlank"
       context-notice="当前页面固定接入 graph: test_case_agent_v2。生成过程会复用通用 chat 基座，但目标不会切到其他 assistant 或 graph。"
       source-note="当前入口来自 Testcase Agent V2 工作区。建议上传真实 PDF 文档后直接让 agent 解析并生成正式测试用例，文档与用例结果会落在当前项目范围内。"
       :display="{

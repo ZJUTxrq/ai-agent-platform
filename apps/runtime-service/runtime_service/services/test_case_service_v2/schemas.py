@@ -18,6 +18,7 @@ DEFAULT_TEST_CASE_KNOWLEDGE_MCP_ENABLED = True
 DEFAULT_TEST_CASE_KNOWLEDGE_MCP_URL = "http://127.0.0.1:8621/sse"
 DEFAULT_TEST_CASE_KNOWLEDGE_TIMEOUT_SECONDS = 30
 DEFAULT_TEST_CASE_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS = 300
+DEFAULT_TEST_CASE_REQUIREMENT_GATE_ENABLED = True
 CONFIG_KEY_PREFIX = "test_case_v2"
 CONFIG_ENV_PREFIX = CONFIG_KEY_PREFIX.upper()
 
@@ -37,6 +38,7 @@ class TestCaseServiceConfig:
     knowledge_sse_read_timeout_seconds: int = (
         DEFAULT_TEST_CASE_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS
     )
+    requirement_gate_enabled: bool = DEFAULT_TEST_CASE_REQUIREMENT_GATE_ENABLED
 
 
 class PersistTestCaseItem(BaseModel):
@@ -141,6 +143,13 @@ def build_test_case_service_config(config: RunnableConfig) -> TestCaseServiceCon
             _parse_int(
                 _read_env_default(f"{CONFIG_ENV_PREFIX}_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS"),
                 DEFAULT_TEST_CASE_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS,
+            ),
+        ),
+        requirement_gate_enabled=_parse_bool(
+            read_private_config("requirement_gate_enabled"),
+            _parse_bool(
+                _read_env_default(f"{CONFIG_ENV_PREFIX}_REQUIREMENT_GATE_ENABLED"),
+                DEFAULT_TEST_CASE_REQUIREMENT_GATE_ENABLED,
             ),
         ),
     )
