@@ -33,6 +33,9 @@ from .validators import (
 EMPTY_PROJECT_ANSWER = "No indexed project knowledge is available for this project yet."
 EMPTY_QUERY_ANSWER = "No relevant project knowledge was found for the query."
 NOT_FOUND_STATUS = "not_found"
+# only_need_context 模式下拼接原文片段的长度上限（防止单次返回撑爆调用方上下文）
+MAX_CONTEXT_CHUNK_CHARS = 1500
+MAX_CONTEXT_TOTAL_CHARS = 12000
 
 
 class ProjectStorageResolver:
@@ -138,6 +141,7 @@ class ProjectKnowledgeService:
         metadata_filters: dict[str, Any] | None = None,
         metadata_boost: dict[str, Any] | None = None,
         strict_scope: bool | None = None,
+        only_need_context: bool | None = None,
     ) -> dict[str, Any]:
         normalized_project_id = validate_project_id(project_id)
         normalized_query = validate_query_text(query)
@@ -162,21 +166,28 @@ class ProjectKnowledgeService:
                 timing_ms=_elapsed_ms(started),
             ).model_dump()
 
-        result = await rag.aquery_llm(
-            normalized_query,
-            param=QueryParam(
-                mode=normalized_mode,  # type: ignore[arg-type]
-                top_k=normalized_top_k,
-                chunk_top_k=normalized_top_k,
-                include_references=True,
-                stream=False,
-                metadata_filters=metadata_filters,
-                metadata_boost=metadata_boost,
-                strict_scope=bool(strict_scope),
-            ),
+        query_param = QueryParam(
+            mode=normalized_mode,  # type: ignore[arg-type]
+            top_k=normalized_top_k,
+            chunk_top_k=normalized_top_k,
+            include_references=True,
+            stream=False,
+            metadata_filters=metadata_filters,
+            metadata_boost=metadata_boost,
+            strict_scope=bool(strict_scope),
         )
-        answer = _extract_query_answer(result)
-        data = _coerce_dict(_coerce_dict(result).get("data"))
+
+        if only_need_context:
+            # 只做检索、跳过答案综述：返回带来源的规则原文片段，
+            # 供调用方（评审 agent）逐条引用，避免综述吞掉细节条款。
+            result = await rag.aquery_data(normalized_query, param=query_param)
+            data = _coerce_dict(_coerce_dict(result).get("data"))
+            answer = _format_context_chunks(data)
+        else:
+            result = await rag.aquery_llm(normalized_query, param=query_param)
+            answer = _extract_query_answer(result)
+            data = _coerce_dict(_coerce_dict(result).get("data"))
+
         citations, matched_document_ids = await self._build_citations(
             rag=rag,
             data=data,
@@ -415,6 +426,46 @@ def _coerce_int(value: Any) -> int | None:
 def _extract_query_answer(result: Any) -> str:
     llm_response = _coerce_dict(_coerce_dict(result).get("llm_response"))
     return _coerce_text(llm_response.get("content")) or EMPTY_QUERY_ANSWER
+
+
+def _format_context_chunks(data: dict[str, Any]) -> str:
+    """将检索到的原文片段按来源分组拼接为可引用的文本。"""
+    chunks = data.get("chunks")
+    if not isinstance(chunks, list) or not chunks:
+        return EMPTY_QUERY_ANSWER
+
+    references = data.get("references")
+    file_path_by_reference: dict[str, str] = {}
+    for reference in references if isinstance(references, list) else []:
+        if not isinstance(reference, dict):
+            continue
+        reference_id = str(reference.get("reference_id") or "").strip()
+        file_path = _coerce_text(reference.get("file_path"))
+        if reference_id and file_path:
+            file_path_by_reference[reference_id] = file_path
+
+    sections: list[str] = []
+    total_chars = 0
+    for index, chunk in enumerate(chunks, start=1):
+        if not isinstance(chunk, dict):
+            continue
+        content = _coerce_text(chunk.get("content"))
+        if not content:
+            continue
+        content = content[:MAX_CONTEXT_CHUNK_CHARS]
+        reference_id = str(chunk.get("reference_id") or "").strip()
+        source = file_path_by_reference.get(reference_id) or _coerce_text(
+            chunk.get("file_path")
+        ) or "unknown"
+        section = f"[{index}] 来源: {source}\n{content}"
+        total_chars += len(section)
+        if total_chars > MAX_CONTEXT_TOTAL_CHARS:
+            break
+        sections.append(section)
+
+    if not sections:
+        return EMPTY_QUERY_ANSWER
+    return "\n\n".join(sections)
 
 
 def _coerce_page_index(chunk: dict[str, Any]) -> int | None:

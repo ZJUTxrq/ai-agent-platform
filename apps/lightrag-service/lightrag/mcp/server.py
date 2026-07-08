@@ -28,8 +28,13 @@ def build_mcp_server() -> FastMCP:
         metadata_filters: dict[str, Any] | None = None,
         metadata_boost: dict[str, Any] | None = None,
         strict_scope: bool | None = None,
+        only_need_context: bool | None = None,
     ) -> dict[str, Any]:
-        """Query project-scoped knowledge and return an answer with citations."""
+        """Query project-scoped knowledge and return an answer with citations.
+
+        Set only_need_context=true to skip answer synthesis and return verbatim
+        source chunks with citations (faster, better for rule-level referencing).
+        """
 
         return await service.query_project_knowledge(
             project_id=project_id,
@@ -39,6 +44,7 @@ def build_mcp_server() -> FastMCP:
             metadata_filters=metadata_filters,
             metadata_boost=metadata_boost,
             strict_scope=strict_scope,
+            only_need_context=only_need_context,
         )
 
     @mcp.tool()

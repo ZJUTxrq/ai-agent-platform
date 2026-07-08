@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from pathlib import Path
-
-from langchain_core.tools import StructuredTool
+from typing import Any
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
@@ -32,113 +32,98 @@ def test_build_requirement_review_knowledge_mcp_specs_defaults() -> None:
     }
 
 
-def test_aget_requirement_review_knowledge_tools_disabled_returns_empty() -> None:
+def test_get_knowledge_tools_disabled_returns_empty() -> None:
     config = ServiceConfig(knowledge_mcp_enabled=False)
+    assert knowledge_mcp.get_requirement_review_knowledge_tools(config) == []
     assert (
         asyncio.run(knowledge_mcp.aget_requirement_review_knowledge_tools(config))
         == []
     )
 
 
-def test_aget_requirement_review_knowledge_tools_uses_multi_server_client(
-    monkeypatch,
-) -> None:
-    captured: dict[str, object] = {}
-
-    class DummyClient:
-        def __init__(
-            self,
-            specs: dict[str, dict[str, object]],
-            *,
-            tool_name_prefix: bool,
-        ) -> None:
-            captured["specs"] = specs
-            captured["tool_name_prefix"] = tool_name_prefix
-
-        async def get_tools(self) -> list[StructuredTool]:
-            async def fake_query_tool(project_id: str) -> list[dict[str, str]]:
-                return [{"type": "text", "text": f"project={project_id}"}]
-
-            async def fake_list_tool(project_id: str) -> dict[str, object]:
-                return {"project_id": project_id, "documents": []}
-
-            async def fake_status_tool(
-                project_id: str,
-                document_id: str,
-            ) -> dict[str, str]:
-                return {
-                    "project_id": project_id,
-                    "document_id": document_id,
-                    "overall_status": "not_found",
-                }
-
-            return [
-                StructuredTool.from_function(
-                    coroutine=fake_query_tool,
-                    name="query_project_knowledge",
-                    description="query",
-                ),
-                StructuredTool.from_function(
-                    coroutine=fake_list_tool,
-                    name="list_project_knowledge_documents",
-                    description="list",
-                ),
-                StructuredTool.from_function(
-                    coroutine=fake_status_tool,
-                    name="get_project_knowledge_document_status",
-                    description="status",
-                ),
-            ]
-
-    monkeypatch.setattr(knowledge_mcp, "MultiServerMCPClient", DummyClient)
-
-    tools = asyncio.run(
-        knowledge_mcp.aget_requirement_review_knowledge_tools(
-            ServiceConfig(
-                knowledge_mcp_url="http://127.0.0.1:8765/sse",
-                knowledge_timeout_seconds=12,
-                knowledge_sse_read_timeout_seconds=34,
-            )
-        )
+def test_get_knowledge_tools_registers_statically_without_network() -> None:
+    """构建工具列表不应触发任何 MCP 连接（惰性连接是本模块的核心约定）。"""
+    tools = knowledge_mcp.get_requirement_review_knowledge_tools(
+        ServiceConfig(knowledge_mcp_url="http://127.0.0.1:1/sse")
     )
-
     tool_names = {getattr(tool, "name", "") for tool in tools}
     assert tool_names == knowledge_mcp.REQUIRED_KNOWLEDGE_TOOL_NAMES
 
+
+def test_tool_invocation_calls_mcp_lazily_and_drops_none_args(monkeypatch) -> None:
+    captured: dict[str, Any] = {}
+
+    async def fake_call(config, tool_name, arguments):
+        captured["url"] = config.knowledge_mcp_url
+        captured["tool_name"] = tool_name
+        captured["arguments"] = arguments
+        return "answer-from-kb"
+
+    monkeypatch.setattr(knowledge_mcp, "call_knowledge_mcp_tool", fake_call)
+
+    tools = knowledge_mcp.get_requirement_review_knowledge_tools(
+        ServiceConfig(knowledge_mcp_url="http://127.0.0.1:8765/sse")
+    )
     query_tool = next(
         tool for tool in tools if getattr(tool, "name", "") == "query_project_knowledge"
     )
-    content = asyncio.run(query_tool.ainvoke({"project_id": "project-a"}))
-    assert content == "project=project-a"
-    assert captured["tool_name_prefix"] is False
-    assert captured["specs"] == {
-        knowledge_mcp.REQUIREMENT_REVIEW_KNOWLEDGE_SERVER_NAME: {
-            "transport": "sse",
-            "url": "http://127.0.0.1:8765/sse",
-            "timeout": 12,
-            "sse_read_timeout": 34,
-        }
-    }
 
-
-def test_aget_requirement_review_knowledge_tools_returns_empty_when_client_init_fails(
-    monkeypatch,
-) -> None:
-    class BrokenClient:
-        def __init__(self, *_args, **_kwargs) -> None:
-            raise RuntimeError("mcp unavailable")
-
-    monkeypatch.setattr(knowledge_mcp, "MultiServerMCPClient", BrokenClient)
-
-    tools = asyncio.run(
-        knowledge_mcp.aget_requirement_review_knowledge_tools(
-            ServiceConfig(
-                knowledge_mcp_url="http://127.0.0.1:8765/sse",
-            )
-        )
+    content = asyncio.run(
+        query_tool.ainvoke({"project_id": "project-a", "query": "退款规则"})
     )
 
-    assert tools == []
+    assert content == "answer-from-kb"
+    assert captured["url"] == "http://127.0.0.1:8765/sse"
+    assert captured["tool_name"] == "query_project_knowledge"
+    # 未提供的可选参数不应传给 MCP 服务端
+    assert captured["arguments"] == {"project_id": "project-a", "query": "退款规则"}
+
+
+def test_tool_invocation_failure_returns_error_payload(monkeypatch) -> None:
+    async def broken_call(config, tool_name, arguments):
+        raise RuntimeError("mcp unavailable")
+
+    monkeypatch.setattr(knowledge_mcp, "call_knowledge_mcp_tool", broken_call)
+
+    tools = knowledge_mcp.get_requirement_review_knowledge_tools(
+        ServiceConfig(knowledge_mcp_url="http://127.0.0.1:8765/sse")
+    )
+    query_tool = next(
+        tool for tool in tools if getattr(tool, "name", "") == "query_project_knowledge"
+    )
+
+    content = asyncio.run(
+        query_tool.ainvoke({"project_id": "project-a", "query": "x"})
+    )
+
+    payload = json.loads(content)
+    assert payload["error"] == "knowledge_mcp_unavailable"
+    assert payload["tool"] == "query_project_knowledge"
+    assert "RuntimeError" in payload["detail"]
+
+
+def test_normalize_call_tool_result_error_flag() -> None:
+    class _Text:
+        def __init__(self, text: str) -> None:
+            self.text = text
+
+    class _Result:
+        def __init__(self, texts: list[str], is_error: bool) -> None:
+            self.content = [_Text(t) for t in texts]
+            self.isError = is_error
+
+    ok = knowledge_mcp._normalize_call_tool_result(
+        "query_project_knowledge", _Result(["hello"], False)
+    )
+    assert ok == "hello"
+
+    err = json.loads(
+        knowledge_mcp._normalize_call_tool_result(
+            "query_project_knowledge", _Result(["boom"], True)
+        )
+    )
+    assert err["error"] == "knowledge_mcp_tool_error"
+    assert err["detail"] == "boom"
 
 
 def test_build_requirement_review_agent_config_reads_prefixed_keys() -> None:
