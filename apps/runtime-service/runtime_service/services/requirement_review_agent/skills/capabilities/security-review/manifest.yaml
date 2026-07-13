@@ -1,0 +1,37 @@
+name: security-review
+version: 0.1.0
+category: security
+description: 涉及鉴权、权限、敏感数据的需求评审要点
+enabled: true
+
+triggers:
+  keywords:
+    - 登录
+    - 鉴权
+    - 认证
+    - 权限
+    - 密码
+    - 加密
+    - 脱敏
+    - 敏感
+    - 个人信息
+    - token
+    - 越权
+    - 审计
+    - 会话
+    - session
+  requirement_types: []
+  priority: 10
+
+prompt:
+  file: SKILL.md
+  inject_stage: requirement-evidence-analysis
+
+scoring:
+  dimension: workflow_and_rules
+  max_findings: 10
+
+requires_tools: []
+compatibility:
+  agents:
+    - requirement_review_agent

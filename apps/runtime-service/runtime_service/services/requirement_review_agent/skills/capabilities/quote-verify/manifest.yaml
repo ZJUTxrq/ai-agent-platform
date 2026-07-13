@@ -1,0 +1,32 @@
+name: quote-verify
+version: 0.1.0
+category: general
+description: 知识库引用逐字核验:硬冲突引用必须经 verify_quote 工具确认原文存在
+enabled: true
+
+triggers:
+  keywords: []
+  requirement_types: []
+  priority: 1
+  always: true
+
+prompt:
+  file: SKILL.md
+  inject_stage: requirement-quality-scoring
+
+scoring:
+  dimension: workflow_and_rules
+  max_findings: 10
+
+handler:
+  module: handler.py
+  entrypoint: get_tools
+  tools:
+    - verify_quote
+  timeout_seconds: 10
+
+requires_tools:
+  - query_project_knowledge
+compatibility:
+  agents:
+    - requirement_review_agent

@@ -77,9 +77,11 @@ def test_requirement_review_agent_build_system_prompt_uses_runtime_project_id(
         *,
         runtime_system_prompt: str | None = None,
         current_project_id: str | None = None,
+        capability_skills_prompt: str | None = None,
     ) -> str:
         captured["runtime_system_prompt"] = runtime_system_prompt
         captured["current_project_id"] = current_project_id
+        captured["capability_skills_prompt"] = capability_skills_prompt
         return "resolved prompt"
 
     monkeypatch.setattr(
@@ -93,10 +95,10 @@ def test_requirement_review_agent_build_system_prompt_uses_runtime_project_id(
     )
 
     assert prompt == "resolved prompt"
-    assert captured == {
-        "runtime_system_prompt": "runtime prompt",
-        "current_project_id": "project-123",
-    }
+    assert captured["runtime_system_prompt"] == "runtime prompt"
+    assert captured["current_project_id"] == "project-123"
+    # 能力 skill 清单由 registry 动态生成注入 system prompt
+    assert "`api-review`" in captured["capability_skills_prompt"]
 
 
 def test_requirement_review_agent_required_tools_include_knowledge_and_service_tools(
@@ -117,10 +119,15 @@ def test_requirement_review_agent_required_tools_include_knowledge_and_service_t
         "build_requirement_review_agent_tools",
         lambda service_config: ["service_tool"],
     )
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "load_capability_handler_tools",
+        lambda registry, service_config: ["capability_tool"],
+    )
 
     resolved_tools = requirement_review_graph._resolve_required_tools(_settings())
 
-    assert resolved_tools == ["knowledge_tool", "service_tool"]
+    assert resolved_tools == ["knowledge_tool", "service_tool", "capability_tool"]
 
 
 def test_requirement_review_agent_aresolve_required_tools_include_knowledge_and_service_tools(
@@ -146,12 +153,17 @@ def test_requirement_review_agent_aresolve_required_tools_include_knowledge_and_
         "build_requirement_review_agent_tools",
         lambda service_config: ["service_tool"],
     )
+    monkeypatch.setattr(
+        requirement_review_graph,
+        "load_capability_handler_tools",
+        lambda registry, service_config: ["capability_tool"],
+    )
 
     resolved_tools = asyncio.run(
         requirement_review_graph._aresolve_required_tools(_settings())
     )
 
-    assert resolved_tools == ["knowledge_tool", "service_tool"]
+    assert resolved_tools == ["knowledge_tool", "service_tool", "capability_tool"]
 
 
 def test_requirement_review_result_schema_validates_structured_output() -> None:

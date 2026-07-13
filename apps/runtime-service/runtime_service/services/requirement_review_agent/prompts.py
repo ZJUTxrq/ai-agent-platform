@@ -110,6 +110,7 @@ def build_requirement_review_system_prompt(
     *,
     runtime_system_prompt: str | None = None,
     current_project_id: str | None = None,
+    capability_skills_prompt: str | None = None,
 ) -> str:
     project_scope_prompt = (
         (
@@ -124,8 +125,12 @@ def build_requirement_review_system_prompt(
             "- 不要编造项目专属事实。\n"
         )
     )
+    capability_section = (
+        f"{capability_skills_prompt}\n\n" if capability_skills_prompt else ""
+    )
     service_prompt = (
         f"{SYSTEM_PROMPT}\n\n"
+        f"{capability_section}"
         f"{project_scope_prompt}\n\n"
         f"{build_requirement_review_output_contract()}"
     )

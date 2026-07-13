@@ -1,0 +1,37 @@
+name: api-review
+version: 0.1.0
+category: api
+description: 接口类需求的评审要点:字段契约、错误码、幂等与兼容性
+enabled: true
+
+triggers:
+  keywords:
+    - 接口
+    - API
+    - api
+    - 字段
+    - 参数
+    - 报文
+    - 错误码
+    - 幂等
+    - 请求
+    - 响应
+    - 状态码
+    - swagger
+    - openapi
+    - endpoint
+  requirement_types: []
+  priority: 20
+
+prompt:
+  file: SKILL.md
+  inject_stage: requirement-evidence-analysis
+
+scoring:
+  dimension: testability
+  max_findings: 10
+
+requires_tools: []
+compatibility:
+  agents:
+    - requirement_review_agent

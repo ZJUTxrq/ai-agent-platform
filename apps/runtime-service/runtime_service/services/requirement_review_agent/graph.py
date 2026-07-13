@@ -11,6 +11,16 @@ from runtime_service.runtime.runtime_request_resolver import (
     AgentDefaults,
     ResolvedRuntimeSettings,
 )
+from runtime_service.services.requirement_review_agent.capability_skills.handler_loader import (
+    load_capability_handler_tools,
+)
+from runtime_service.services.requirement_review_agent.capability_skills.middleware import (
+    CapabilitySkillRoutingMiddleware,
+)
+from runtime_service.services.requirement_review_agent.capability_skills.registry import (
+    build_capability_skills_prompt,
+    load_capability_registry,
+)
 from runtime_service.services.requirement_review_agent.prompts import (
     build_requirement_review_system_prompt,
 )
@@ -25,6 +35,7 @@ from runtime_service.services.requirement_review_agent.schemas import (
     RequirementReviewAgentConfig,
     build_requirement_review_agent_config,
     get_service_root,
+    get_skills_root,
 )
 from runtime_service.services.requirement_review_agent.tools import (
     build_requirement_review_agent_tools,
@@ -45,9 +56,22 @@ BACKEND = build_filesystem_backend(
     root_dir=get_service_root(),
     virtual_mode=True,
 )
-SERVICE_TOOLS = [
+_BASE_SERVICE_TOOLS = [
     *get_requirement_review_knowledge_tools(REQUIREMENT_REVIEW_CONFIG),
     *build_requirement_review_agent_tools(REQUIREMENT_REVIEW_CONFIG),
+]
+# 能力 skill 注册表:目录即注册单元,启动时校验 manifest;
+# requires_tools 按当前实际可用工具过滤,不满足的 skill 拒载
+CAPABILITY_REGISTRY = load_capability_registry(
+    get_skills_root() / "capabilities",
+    available_tool_names={
+        getattr(tool, "name", "") for tool in _BASE_SERVICE_TOOLS
+    },
+    agent_name="requirement_review_agent",
+)
+SERVICE_TOOLS = [
+    *_BASE_SERVICE_TOOLS,
+    *load_capability_handler_tools(CAPABILITY_REGISTRY, REQUIREMENT_REVIEW_CONFIG),
 ]
 REQUIREMENT_REVIEW_MIDDLEWARE = [
     MultimodalMiddleware(
@@ -56,6 +80,7 @@ REQUIREMENT_REVIEW_MIDDLEWARE = [
         detail_text_max_chars=REQUIREMENT_REVIEW_CONFIG.multimodal_detail_text_max_chars,
     ),
     RequirementReviewDocumentPersistenceMiddleware(REQUIREMENT_REVIEW_CONFIG),
+    CapabilitySkillRoutingMiddleware(CAPABILITY_REGISTRY, REQUIREMENT_REVIEW_CONFIG),
 ]
 
 
@@ -70,6 +95,7 @@ def _build_system_prompt(settings: ResolvedRuntimeSettings) -> str:
     return build_requirement_review_system_prompt(
         runtime_system_prompt=settings.system_prompt or None,
         current_project_id=_resolve_current_project_id(settings),
+        capability_skills_prompt=build_capability_skills_prompt(CAPABILITY_REGISTRY),
     )
 
 
@@ -91,6 +117,7 @@ def _resolve_required_tools(
     return [
         *get_requirement_review_knowledge_tools(service_config),
         *build_requirement_review_agent_tools(service_config),
+        *load_capability_handler_tools(CAPABILITY_REGISTRY, service_config),
     ]
 
 
@@ -101,6 +128,7 @@ async def _aresolve_required_tools(
     return [
         *(await aget_requirement_review_knowledge_tools(service_config)),
         *build_requirement_review_agent_tools(service_config),
+        *load_capability_handler_tools(CAPABILITY_REGISTRY, service_config),
     ]
 
 

@@ -18,6 +18,7 @@ DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_ENABLED = True
 DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_MCP_URL = "http://127.0.0.1:8621/sse"
 DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_TIMEOUT_SECONDS = 30
 DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS = 300
+DEFAULT_REQUIREMENT_REVIEW_CAPABILITY_SKILLS_ENABLED = True
 CONFIG_KEY_PREFIX = "requirement_review"
 CONFIG_ENV_PREFIX = CONFIG_KEY_PREFIX.upper()
 RequirementQualityGate = Literal["pass", "conditional", "blocked"]
@@ -42,6 +43,9 @@ class RequirementReviewAgentConfig:
     knowledge_timeout_seconds: int = DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_TIMEOUT_SECONDS
     knowledge_sse_read_timeout_seconds: int = (
         DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS
+    )
+    capability_skills_enabled: bool = (
+        DEFAULT_REQUIREMENT_REVIEW_CAPABILITY_SKILLS_ENABLED
     )
 
 
@@ -201,6 +205,13 @@ def build_requirement_review_agent_config(
                     f"{CONFIG_ENV_PREFIX}_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS"
                 ),
                 DEFAULT_REQUIREMENT_REVIEW_KNOWLEDGE_SSE_READ_TIMEOUT_SECONDS,
+            ),
+        ),
+        capability_skills_enabled=_parse_bool(
+            read_private_config("capability_skills_enabled"),
+            _parse_bool(
+                _read_env_default(f"{CONFIG_ENV_PREFIX}_CAPABILITY_SKILLS_ENABLED"),
+                DEFAULT_REQUIREMENT_REVIEW_CAPABILITY_SKILLS_ENABLED,
             ),
         ),
     )

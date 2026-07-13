@@ -1,0 +1,35 @@
+name: business-flow-review
+version: 0.1.0
+category: business-flow
+description: 流程与状态机类需求的评审要点:状态完整性、异常路径、并发
+enabled: true
+
+triggers:
+  keywords:
+    - 流程
+    - 状态
+    - 审批
+    - 订单
+    - 工作流
+    - 流转
+    - 回退
+    - 超时
+    - 撤销
+    - 驳回
+    - 节点
+    - 提交
+  requirement_types: []
+  priority: 30
+
+prompt:
+  file: SKILL.md
+  inject_stage: requirement-evidence-analysis
+
+scoring:
+  dimension: workflow_and_rules
+  max_findings: 10
+
+requires_tools: []
+compatibility:
+  agents:
+    - requirement_review_agent
