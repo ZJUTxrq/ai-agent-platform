@@ -57,6 +57,47 @@ class GetRequirementReviewBatchDetailQuery(BaseModel):
     result_offset: int = Field(default=0, ge=0)
 
 
+class ListRequirementFeatureListsQuery(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    batch_id: str | None = None
+    status: str | None = None
+    query: str | None = None
+    limit: int = Field(default=50, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+
+
+class CreateRequirementFeatureListCommand(BaseModel):
+    batch_id: str | None = None
+    thread_id: str | None = None
+    idempotency_key: str | None = None
+    decomposable: bool = True
+    undecomposable_reason: str | None = None
+    requirement_text: str = ""
+    requirement_summary: str = ""
+    modules: list[dict[str, object]] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    raw_result: dict[str, object] = Field(default_factory=dict)
+
+
+class UpdateRequirementFeatureListCommand(BaseModel):
+    batch_id: str | None = None
+    thread_id: str | None = None
+    decomposable: bool | None = None
+    undecomposable_reason: str | None = None
+    requirement_text: str | None = None
+    requirement_summary: str | None = None
+    modules: list[dict[str, object]] | None = None
+    open_questions: list[str] | None = None
+    assumptions: list[str] | None = None
+    raw_result: dict[str, object] | None = None
+
+
+class ConfirmRequirementFeatureListCommand(BaseModel):
+    expected_version: int | None = Field(default=None, ge=1)
+
+
 class CreateRequirementReviewDocumentCommand(BaseModel):
     batch_id: str | None = None
     thread_id: str | None = None

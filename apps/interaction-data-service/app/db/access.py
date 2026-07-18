@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.db.models import (
+    RequirementFeatureList,
     RequirementReviewDocument,
     RequirementReviewResult,
     TestCaseDocument,
@@ -909,6 +910,197 @@ def update_requirement_review_result(
 
 
 def delete_requirement_review_result(session: Session, row: RequirementReviewResult) -> None:
+    session.delete(row)
+    session.flush()
+
+
+FEATURE_LIST_STATUS_DRAFT = "draft"
+FEATURE_LIST_STATUS_CONFIRMED = "confirmed"
+
+_FEATURE_LIST_CONTENT_FIELDS = (
+    "requirement_text",
+    "requirement_summary",
+    "modules",
+    "open_questions",
+    "assumptions",
+    "decomposable",
+    "undecomposable_reason",
+    "raw_result",
+)
+
+
+def create_requirement_feature_list(
+    session: Session,
+    *,
+    project_id: uuid.UUID,
+    batch_id: str | None,
+    thread_id: str | None,
+    idempotency_key: str | None,
+    decomposable: bool,
+    undecomposable_reason: str | None,
+    requirement_text: str,
+    requirement_summary: str,
+    modules: list[dict],
+    open_questions: list[str],
+    assumptions: list[str],
+    raw_result: dict,
+) -> RequirementFeatureList:
+    normalized_batch_id = batch_id.strip() if isinstance(batch_id, str) and batch_id.strip() else None
+    normalized_thread_id = thread_id.strip() if isinstance(thread_id, str) and thread_id.strip() else None
+    normalized_idempotency_key = (
+        idempotency_key.strip()
+        if isinstance(idempotency_key, str) and idempotency_key.strip()
+        else None
+    )
+    if normalized_idempotency_key is not None:
+        existing_stmt = select(RequirementFeatureList).where(
+            RequirementFeatureList.project_id == project_id,
+            RequirementFeatureList.idempotency_key == normalized_idempotency_key,
+        )
+        if normalized_batch_id is None:
+            existing_stmt = existing_stmt.where(RequirementFeatureList.batch_id.is_(None))
+        else:
+            existing_stmt = existing_stmt.where(RequirementFeatureList.batch_id == normalized_batch_id)
+        existing = session.scalar(existing_stmt)
+        if existing is not None:
+            return existing
+
+    row = RequirementFeatureList(
+        project_id=project_id,
+        batch_id=normalized_batch_id,
+        thread_id=normalized_thread_id,
+        idempotency_key=normalized_idempotency_key,
+        version=1,
+        status=FEATURE_LIST_STATUS_DRAFT,
+        decomposable=decomposable,
+        undecomposable_reason=undecomposable_reason,
+        requirement_text=requirement_text,
+        requirement_summary=requirement_summary,
+        modules=modules,
+        open_questions=open_questions,
+        assumptions=assumptions,
+        raw_result=raw_result,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def list_requirement_feature_lists(
+    session: Session,
+    *,
+    project_id: uuid.UUID | None,
+    batch_id: str | None,
+    status: str | None,
+    query: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[RequirementFeatureList], int]:
+    base_stmt = select(RequirementFeatureList)
+    if project_id is not None:
+        base_stmt = base_stmt.where(RequirementFeatureList.project_id == project_id)
+    if isinstance(batch_id, str) and batch_id.strip():
+        base_stmt = base_stmt.where(RequirementFeatureList.batch_id == batch_id.strip())
+    if isinstance(status, str) and status.strip():
+        base_stmt = base_stmt.where(RequirementFeatureList.status == status.strip())
+    if isinstance(query, str) and query.strip():
+        pattern = f"%{query.strip()}%"
+        base_stmt = base_stmt.where(
+            or_(
+                RequirementFeatureList.requirement_summary.ilike(pattern),
+                RequirementFeatureList.requirement_text.ilike(pattern),
+            )
+        )
+    stmt = (
+        base_stmt.order_by(desc(RequirementFeatureList.updated_at), desc(RequirementFeatureList.id))
+        .offset(offset)
+        .limit(limit)
+    )
+    count_stmt = select(func.count()).select_from(base_stmt.subquery())
+    rows = list(session.scalars(stmt).all())
+    total = int(session.scalar(count_stmt) or 0)
+    return rows, total
+
+
+def get_requirement_feature_list(
+    session: Session,
+    feature_list_id: uuid.UUID,
+) -> RequirementFeatureList | None:
+    return session.get(RequirementFeatureList, feature_list_id)
+
+
+def update_requirement_feature_list(
+    session: Session,
+    row: RequirementFeatureList,
+    *,
+    batch_id: str | None,
+    thread_id: str | None,
+    decomposable: bool | None,
+    undecomposable_reason: str | None,
+    requirement_text: str | None,
+    requirement_summary: str | None,
+    modules: list[dict] | None,
+    open_questions: list[str] | None,
+    assumptions: list[str] | None,
+    raw_result: dict | None,
+) -> RequirementFeatureList:
+    if batch_id is not None:
+        row.batch_id = batch_id
+    if thread_id is not None:
+        row.thread_id = thread_id
+
+    updates = {
+        "decomposable": decomposable,
+        "undecomposable_reason": undecomposable_reason,
+        "requirement_text": requirement_text,
+        "requirement_summary": requirement_summary,
+        "modules": modules,
+        "open_questions": open_questions,
+        "assumptions": assumptions,
+        "raw_result": raw_result,
+    }
+    content_changed = False
+    for field_name in _FEATURE_LIST_CONTENT_FIELDS:
+        value = updates.get(field_name)
+        if value is None:
+            continue
+        if getattr(row, field_name) != value:
+            setattr(row, field_name, value)
+            content_changed = True
+
+    # 内容变更即产生新版本，已确认状态失效，必须重新人工确认
+    if content_changed:
+        row.version = int(row.version or 1) + 1
+        row.status = FEATURE_LIST_STATUS_DRAFT
+        row.confirmed_at = None
+        row.confirmed_by = None
+
+    session.flush()
+    return row
+
+
+def confirm_requirement_feature_list(
+    session: Session,
+    row: RequirementFeatureList,
+    *,
+    confirmed_by: str | None,
+) -> RequirementFeatureList:
+    if not row.decomposable:
+        raise ValueError("feature_list_not_decomposable")
+    if row.status == FEATURE_LIST_STATUS_CONFIRMED:
+        return row
+    row.status = FEATURE_LIST_STATUS_CONFIRMED
+    row.confirmed_at = datetime.now(timezone.utc)
+    row.confirmed_by = (
+        confirmed_by.strip()
+        if isinstance(confirmed_by, str) and confirmed_by.strip()
+        else None
+    )
+    session.flush()
+    return row
+
+
+def delete_requirement_feature_list(session: Session, row: RequirementFeatureList) -> None:
     session.delete(row)
     session.flush()
 

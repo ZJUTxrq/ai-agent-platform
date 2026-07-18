@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from app.db.base import Base
-from sqlalchemy import DateTime, Float, JSON, String, Text, Uuid, func
+from sqlalchemy import Boolean, DateTime, Float, Integer, JSON, String, Text, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -85,6 +85,43 @@ class RequirementReviewDocument(Base):
     structured_data: Mapped[dict | None] = mapped_column(JSON_FIELD, nullable=True)
     provenance: Mapped[dict] = mapped_column(JSON_FIELD, nullable=False, default=dict)
     error: Mapped[dict | None] = mapped_column(JSON_FIELD, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+
+class RequirementFeatureList(Base):
+    """需求模块化拆解产物：先由拆解 agent 生成草稿，人工确认后才能进入评审/生成。"""
+
+    __tablename__ = "requirement_feature_lists"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False)
+    batch_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    status: Mapped[str] = mapped_column(String(64), nullable=False, default="draft")
+    decomposable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    undecomposable_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    requirement_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    requirement_summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    modules: Mapped[list[dict]] = mapped_column(JSON_FIELD, nullable=False, default=list)
+    open_questions: Mapped[list[str]] = mapped_column(JSON_FIELD, nullable=False, default=list)
+    assumptions: Mapped[list[str]] = mapped_column(JSON_FIELD, nullable=False, default=list)
+    raw_result: Mapped[dict] = mapped_column(JSON_FIELD, nullable=False, default=dict)
+    confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    confirmed_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -1,4 +1,6 @@
 from app.modules.requirement_review.domain.models import (
+    RequirementFeatureList,
+    RequirementFeatureListPage,
     RequirementReviewBatchDetail,
     RequirementReviewBatchPage,
     RequirementReviewBatchSummary,
@@ -11,6 +13,8 @@ from app.modules.requirement_review.domain.models import (
 )
 
 __all__ = [
+    "RequirementFeatureList",
+    "RequirementFeatureListPage",
     "RequirementReviewBatchDetail",
     "RequirementReviewBatchPage",
     "RequirementReviewBatchSummary",

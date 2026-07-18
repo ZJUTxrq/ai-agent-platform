@@ -19,6 +19,9 @@ from app.modules.operations.application.execution import (
     DatabasePollingOperationDispatcher,
     OperationExecutorRegistry,
 )
+from app.modules.operations.application.decompose_pipeline import (
+    RequirementDecomposeExecutor,
+)
 from app.modules.operations.application.heartbeat import OperationWorkerHeartbeatReporter
 from app.modules.operations.application.review_generate_pipeline import (
     RequirementReviewAndGenerateExecutor,
@@ -228,6 +231,11 @@ def build_operation_worker(
             ),
             RequirementReviewAndGenerateExecutor(
                 upstream=_build_pipeline_runtime_upstream(settings),
+                feature_list_service=requirement_review_service,
+            ),
+            RequirementDecomposeExecutor(
+                upstream=_build_pipeline_runtime_upstream(settings),
+                feature_list_service=requirement_review_service,
             ),
         )
     )

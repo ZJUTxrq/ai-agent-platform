@@ -19,8 +19,12 @@ from app.modules.iam.application import AuthorizationRequest, IamPolicyEngine, P
 from app.modules.iam.domain import ProjectRole
 from app.modules.projects.infra.sqlalchemy.repository import SqlAlchemyProjectsRepository
 from app.modules.requirement_review.application.contracts import (
+    ConfirmRequirementFeatureListCommand,
+    CreateRequirementFeatureListCommand,
     CreateRequirementReviewDocumentCommand,
     CreateRequirementReviewResultCommand,
+    ListRequirementFeatureListsQuery,
+    UpdateRequirementFeatureListCommand,
     ExportRequirementReviewDocumentsQuery,
     ExportRequirementReviewResultsQuery,
     GetRequirementReviewBatchDetailQuery,
@@ -39,6 +43,8 @@ from app.modules.requirement_review.application.exporters import (
 )
 from app.modules.requirement_review.application.ports import RequirementReviewDataPort
 from app.modules.requirement_review.domain import (
+    RequirementFeatureList,
+    RequirementFeatureListPage,
     RequirementReviewBatchDetail,
     RequirementReviewBatchPage,
     RequirementReviewBatchSummary,
@@ -52,6 +58,7 @@ from app.modules.requirement_review.domain import (
 
 _RESULTS_PATH = "/api/requirement-review-service/results"
 _DOCUMENTS_PATH = "/api/requirement-review-service/documents"
+_FEATURE_LISTS_PATH = "/api/requirement-review-service/feature-lists"
 _OVERVIEW_PATH = "/api/requirement-review-service/overview"
 _BATCHES_PATH = "/api/requirement-review-service/batches"
 _DEFAULT_EXPORT_PAGE_SIZE = 200
@@ -653,6 +660,153 @@ class RequirementReviewService:
         await self._prepare_project_scope(actor=actor, project_id=project_id, write=True)
         await self.get_result(actor=actor, project_id=project_id, result_id=result_id)
         await self._upstream.require_json("DELETE", f"{_RESULTS_PATH}/{result_id}")
+
+    async def list_feature_lists(
+        self,
+        *,
+        actor: ActorContext,
+        project_id: str,
+        query: ListRequirementFeatureListsQuery,
+    ) -> RequirementFeatureListPage:
+        await self._prepare_project_scope(actor=actor, project_id=project_id, write=False)
+        params: dict[str, Any] = {
+            "project_id": project_id,
+            "limit": query.limit,
+            "offset": query.offset,
+        }
+        if clean_str(query.batch_id):
+            params["batch_id"] = query.batch_id
+        if clean_str(query.status):
+            params["status"] = query.status
+        if clean_str(query.query):
+            params["query"] = query.query
+
+        payload = self._ensure_object(
+            await self._upstream.require_json("GET", _FEATURE_LISTS_PATH, params=params),
+            code="interaction_data_invalid_response",
+        )
+        items = [
+            RequirementFeatureList.model_validate(item)
+            for item in self._normalize_items(payload.get("items"))
+        ]
+        return RequirementFeatureListPage(
+            items=items,
+            total=self._normalize_total(payload, fallback_items=items),
+        )
+
+    async def get_feature_list(
+        self,
+        *,
+        actor: ActorContext,
+        project_id: str,
+        feature_list_id: str,
+    ) -> RequirementFeatureList:
+        await self._prepare_project_scope(actor=actor, project_id=project_id, write=False)
+        payload = await self._upstream.require_json(
+            "GET", f"{_FEATURE_LISTS_PATH}/{feature_list_id}"
+        )
+        normalized = self._ensure_project_match(
+            payload,
+            project_id=project_id,
+            code="requirement_feature_list_not_found",
+        )
+        return RequirementFeatureList.model_validate(normalized)
+
+    async def create_feature_list(
+        self,
+        *,
+        actor: ActorContext,
+        project_id: str,
+        command: CreateRequirementFeatureListCommand,
+    ) -> RequirementFeatureList:
+        await self._prepare_project_scope(actor=actor, project_id=project_id, write=True)
+        payload = payload_to_dict(command)
+        for key in ("batch_id", "thread_id", "idempotency_key"):
+            if key in payload:
+                payload[key] = clean_str(payload.get(key))
+        payload["project_id"] = project_id
+        created = await self._upstream.require_json(
+            "POST", _FEATURE_LISTS_PATH, payload=payload
+        )
+        normalized = self._ensure_project_match(
+            created,
+            project_id=project_id,
+            code="requirement_feature_list_not_found",
+        )
+        return RequirementFeatureList.model_validate(normalized)
+
+    async def update_feature_list(
+        self,
+        *,
+        actor: ActorContext,
+        project_id: str,
+        feature_list_id: str,
+        command: UpdateRequirementFeatureListCommand,
+    ) -> RequirementFeatureList:
+        await self._prepare_project_scope(actor=actor, project_id=project_id, write=True)
+        existing = await self.get_feature_list(
+            actor=actor, project_id=project_id, feature_list_id=feature_list_id
+        )
+        payload = payload_to_dict(command)
+        updated = await self._upstream.require_json(
+            "PATCH",
+            f"{_FEATURE_LISTS_PATH}/{feature_list_id}",
+            payload=payload,
+        )
+        normalized = self._ensure_project_match(
+            updated,
+            project_id=project_id,
+            code="requirement_feature_list_not_found",
+        )
+        if clean_str(normalized.get("id")) != existing.id:
+            raise NotFoundError(
+                message="requirement_feature_list_not_found",
+                code="requirement_feature_list_not_found",
+            )
+        return RequirementFeatureList.model_validate(normalized)
+
+    async def confirm_feature_list(
+        self,
+        *,
+        actor: ActorContext,
+        project_id: str,
+        feature_list_id: str,
+        command: ConfirmRequirementFeatureListCommand,
+    ) -> RequirementFeatureList:
+        await self._prepare_project_scope(actor=actor, project_id=project_id, write=True)
+        await self.get_feature_list(
+            actor=actor, project_id=project_id, feature_list_id=feature_list_id
+        )
+        # confirmed_by 取自登录态，不信任客户端传入
+        confirmed = await self._upstream.require_json(
+            "POST",
+            f"{_FEATURE_LISTS_PATH}/{feature_list_id}/confirm",
+            payload={
+                "confirmed_by": clean_str(actor.subject),
+                "expected_version": command.expected_version,
+            },
+        )
+        normalized = self._ensure_project_match(
+            confirmed,
+            project_id=project_id,
+            code="requirement_feature_list_not_found",
+        )
+        return RequirementFeatureList.model_validate(normalized)
+
+    async def delete_feature_list(
+        self,
+        *,
+        actor: ActorContext,
+        project_id: str,
+        feature_list_id: str,
+    ) -> None:
+        await self._prepare_project_scope(actor=actor, project_id=project_id, write=True)
+        await self.get_feature_list(
+            actor=actor, project_id=project_id, feature_list_id=feature_list_id
+        )
+        await self._upstream.require_json(
+            "DELETE", f"{_FEATURE_LISTS_PATH}/{feature_list_id}"
+        )
 
     async def export_results(
         self,

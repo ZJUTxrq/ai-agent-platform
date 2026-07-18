@@ -44,6 +44,10 @@
     "requirement_review_agent": {
       "path": "./runtime_service/services/requirement_review_agent/graph.py:graph",
       "description": "需求质量评审智能体：独立进行需求评分和门禁判断，用于决定是否允许进入测试用例生成阶段。"
+    },
+    "requirement_decompose_agent": {
+      "path": "./runtime_service/services/requirement_decompose_agent/graph.py:graph",
+      "description": "需求模块化拆解智能体：把需求忠实拆解为模块/功能点/验收标准草稿（含来源摘录与待澄清项），人工确认后进入需求评审与用例生成。"
     }
 
   },

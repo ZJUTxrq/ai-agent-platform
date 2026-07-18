@@ -4,9 +4,11 @@ import {
   submitOperation,
   waitForOperationTerminalState
 } from '@/services/operations/operations.service'
+import type { ChatAttachmentBlock } from '@/utils/chat-content'
 import type {
   ManagementDownload,
   ManagementOperation,
+  RequirementFeatureList,
   RequirementReviewBatchDetail,
   RequirementReviewBatchSummary,
   RequirementReviewDocument,
@@ -419,5 +421,140 @@ export async function deleteRequirementReviewResult(
   const { client, path } = resolveEndpoint(projectId, `/results/${resultId}`)
   await client.delete(path, {
     headers: buildHeaders(projectId)
+  })
+}
+
+type FeatureListListResponse = {
+  items: RequirementFeatureList[]
+  total: number
+}
+
+export async function listRequirementFeatureLists(
+  projectId: string,
+  options?: {
+    batch_id?: string
+    status?: string
+    query?: string
+    limit?: number
+    offset?: number
+  }
+): Promise<FeatureListListResponse> {
+  const { client, path } = resolveEndpoint(projectId, '/feature-lists')
+  const response = await client.get(path, {
+    headers: buildHeaders(projectId),
+    params: {
+      limit: options?.limit ?? 20,
+      offset: options?.offset ?? 0,
+      batch_id: options?.batch_id?.trim() || undefined,
+      status: options?.status?.trim() || undefined,
+      query: options?.query?.trim() || undefined
+    }
+  })
+  return response.data as FeatureListListResponse
+}
+
+export async function getRequirementFeatureList(
+  projectId: string,
+  featureListId: string
+): Promise<RequirementFeatureList> {
+  const { client, path } = resolveEndpoint(projectId, `/feature-lists/${featureListId}`)
+  const response = await client.get(path, {
+    headers: buildHeaders(projectId)
+  })
+  return response.data as RequirementFeatureList
+}
+
+export type UpdateRequirementFeatureListPayload = {
+  requirement_text?: string
+  requirement_summary?: string
+  modules?: Record<string, unknown>[]
+  open_questions?: string[]
+  assumptions?: string[]
+}
+
+export async function updateRequirementFeatureList(
+  projectId: string,
+  featureListId: string,
+  payload: UpdateRequirementFeatureListPayload
+): Promise<RequirementFeatureList> {
+  const { client, path } = resolveEndpoint(projectId, `/feature-lists/${featureListId}`)
+  const response = await client.patch(path, payload, {
+    headers: buildHeaders(projectId)
+  })
+  return response.data as RequirementFeatureList
+}
+
+export async function confirmRequirementFeatureList(
+  projectId: string,
+  featureListId: string,
+  options?: { expected_version?: number }
+): Promise<RequirementFeatureList> {
+  const { client, path } = resolveEndpoint(
+    projectId,
+    `/feature-lists/${featureListId}/confirm`
+  )
+  const response = await client.post(
+    path,
+    { expected_version: options?.expected_version },
+    { headers: buildHeaders(projectId) }
+  )
+  return response.data as RequirementFeatureList
+}
+
+export async function deleteRequirementFeatureList(
+  projectId: string,
+  featureListId: string
+): Promise<void> {
+  const { client, path } = resolveEndpoint(projectId, `/feature-lists/${featureListId}`)
+  await client.delete(path, {
+    headers: buildHeaders(projectId)
+  })
+}
+
+export async function decomposeRequirementByOperation(
+  projectId: string,
+  options: {
+    requirement_text?: string
+    attachments?: ChatAttachmentBlock[]
+    batch_id?: string
+    idempotencyKey?: string
+  }
+): Promise<ManagementOperation> {
+  const submitted = await submitOperation({
+    kind: 'requirement.feature_list.decompose',
+    project_id: projectId,
+    idempotency_key: options.idempotencyKey,
+    input_payload: {
+      requirement_text: options.requirement_text?.trim() || undefined,
+      attachments: options.attachments?.length ? options.attachments : undefined,
+      batch_id: options.batch_id?.trim() || undefined
+    }
+  })
+  return waitForOperationTerminalState(submitted.id, {
+    pollMs: 2000,
+    timeoutMs: 300000
+  })
+}
+
+export async function reviewAndGenerateByOperation(
+  projectId: string,
+  options: {
+    feature_list_id?: string
+    requirement_text?: string
+    idempotencyKey?: string
+  }
+): Promise<ManagementOperation> {
+  const submitted = await submitOperation({
+    kind: 'testcase.review_and_generate',
+    project_id: projectId,
+    idempotency_key: options.idempotencyKey,
+    input_payload: {
+      feature_list_id: options.feature_list_id || undefined,
+      requirement_text: options.requirement_text?.trim() || undefined
+    }
+  })
+  return waitForOperationTerminalState(submitted.id, {
+    pollMs: 2000,
+    timeoutMs: 600000
   })
 }

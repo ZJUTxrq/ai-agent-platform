@@ -277,6 +277,19 @@ const workspaceChildren: RouteRecordRaw[] = [
     }
   },
   {
+    path: 'requirement-review-feature-lists',
+    name: 'workspace-requirement-review-feature-lists',
+    component: () =>
+      import('@/modules/requirement-review/pages/RequirementReviewFeatureListsPage.vue'),
+    meta: {
+      title: '需求拆解',
+      eyebrow: 'Requirement Review',
+      requiredPermissions: ['project.runtime.read'],
+      permissionProjectSource: 'workspace',
+      allowWithoutProject: true
+    }
+  },
+  {
     path: 'requirement-review-results',
     name: 'workspace-requirement-review-results',
     component: () => import('@/modules/requirement-review/pages/RequirementReviewResultsPage.vue'),

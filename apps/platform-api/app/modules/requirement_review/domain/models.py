@@ -101,6 +101,34 @@ class RequirementReviewResultPage(OffsetPage[RequirementReviewResult]):
     pass
 
 
+class RequirementFeatureList(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    project_id: str
+    batch_id: str | None = None
+    thread_id: str | None = None
+    idempotency_key: str | None = None
+    version: int = 1
+    status: str = "draft"
+    decomposable: bool = True
+    undecomposable_reason: str | None = None
+    requirement_text: str = ""
+    requirement_summary: str = ""
+    modules: list[dict[str, Any]] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    raw_result: dict[str, Any] = Field(default_factory=dict)
+    confirmed_at: datetime | None = None
+    confirmed_by: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RequirementFeatureListPage(OffsetPage[RequirementFeatureList]):
+    pass
+
+
 class RequirementReviewBatchDetail(BaseModel):
     model_config = ConfigDict(frozen=True)
 

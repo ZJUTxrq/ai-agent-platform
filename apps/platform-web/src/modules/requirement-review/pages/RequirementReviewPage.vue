@@ -46,6 +46,8 @@ const initialThreadId = computed(() =>
   typeof route.query.threadId === 'string' && route.query.threadId.trim() ? route.query.threadId.trim() : ''
 )
 
+const initialBlank = computed(() => !initialThreadId.value && route.query.blank === '1')
+
 watchEffect(() => {
   if (!activeProjectId.value) {
     return
@@ -227,6 +229,7 @@ watch(
       v-else
       :target="reviewTarget"
       :initial-thread-id="initialThreadId"
+      :initial-blank="initialBlank"
       context-notice="当前页面固定接入 graph: requirement_review_agent，只做需求质量评分、门禁判断和评审结果沉淀。"
       source-note="建议上传真实 PRD/PDF。评审通过后，再进入后续测试用例生成流程。"
       :display="{

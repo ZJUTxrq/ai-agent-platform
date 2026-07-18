@@ -12,15 +12,19 @@ from app.core.context.models import ActorContext
 from app.core.schemas import AckResponse
 from app.entrypoints.http.dependencies import get_actor_context
 from app.modules.requirement_review.application import (
+    ConfirmRequirementFeatureListCommand,
+    CreateRequirementFeatureListCommand,
     CreateRequirementReviewDocumentCommand,
     CreateRequirementReviewResultCommand,
     ExportRequirementReviewDocumentsQuery,
     ExportRequirementReviewResultsQuery,
     GetRequirementReviewBatchDetailQuery,
+    ListRequirementFeatureListsQuery,
     ListRequirementReviewBatchesQuery,
     ListRequirementReviewDocumentsQuery,
     ListRequirementReviewResultsQuery,
     RequirementReviewService,
+    UpdateRequirementFeatureListCommand,
     UpdateRequirementReviewDocumentCommand,
     UpdateRequirementReviewResultCommand,
 )
@@ -28,6 +32,8 @@ from app.modules.requirement_review.application.exporters import (
     build_requirement_review_content_disposition,
 )
 from app.modules.requirement_review.domain import (
+    RequirementFeatureList,
+    RequirementFeatureListPage,
     RequirementReviewBatchDetail,
     RequirementReviewBatchPage,
     RequirementReviewDocument,
@@ -395,6 +401,120 @@ async def delete_requirement_review_result(
         actor=actor,
         project_id=project_id,
         result_id=result_id,
+    )
+    return AckResponse()
+
+
+@router.get("/feature-lists", response_model=RequirementFeatureListPage)
+async def list_requirement_feature_lists(
+    request: Request,
+    project_id: str,
+    batch_id: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+    query: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    actor: ActorContext = Depends(get_actor_context),
+    service: RequirementReviewService = Depends(get_requirement_review_service),
+) -> RequirementFeatureListPage:
+    _bind_project_audit_scope(request, project_id)
+    return await service.list_feature_lists(
+        actor=actor,
+        project_id=project_id,
+        query=ListRequirementFeatureListsQuery(
+            batch_id=batch_id,
+            status=status,
+            query=query,
+            limit=limit,
+            offset=offset,
+        ),
+    )
+
+
+@router.post("/feature-lists", response_model=RequirementFeatureList)
+async def create_requirement_feature_list(
+    request: Request,
+    project_id: str,
+    payload: CreateRequirementFeatureListCommand,
+    actor: ActorContext = Depends(get_actor_context),
+    service: RequirementReviewService = Depends(get_requirement_review_service),
+) -> RequirementFeatureList:
+    _bind_project_audit_scope(request, project_id)
+    return await service.create_feature_list(
+        actor=actor,
+        project_id=project_id,
+        command=payload,
+    )
+
+
+@router.get("/feature-lists/{feature_list_id}", response_model=RequirementFeatureList)
+async def get_requirement_feature_list(
+    request: Request,
+    project_id: str,
+    feature_list_id: str,
+    actor: ActorContext = Depends(get_actor_context),
+    service: RequirementReviewService = Depends(get_requirement_review_service),
+) -> RequirementFeatureList:
+    _bind_project_audit_scope(request, project_id)
+    return await service.get_feature_list(
+        actor=actor,
+        project_id=project_id,
+        feature_list_id=feature_list_id,
+    )
+
+
+@router.patch("/feature-lists/{feature_list_id}", response_model=RequirementFeatureList)
+async def update_requirement_feature_list(
+    request: Request,
+    project_id: str,
+    feature_list_id: str,
+    payload: UpdateRequirementFeatureListCommand,
+    actor: ActorContext = Depends(get_actor_context),
+    service: RequirementReviewService = Depends(get_requirement_review_service),
+) -> RequirementFeatureList:
+    _bind_project_audit_scope(request, project_id)
+    return await service.update_feature_list(
+        actor=actor,
+        project_id=project_id,
+        feature_list_id=feature_list_id,
+        command=payload,
+    )
+
+
+@router.post(
+    "/feature-lists/{feature_list_id}/confirm",
+    response_model=RequirementFeatureList,
+)
+async def confirm_requirement_feature_list(
+    request: Request,
+    project_id: str,
+    feature_list_id: str,
+    payload: ConfirmRequirementFeatureListCommand,
+    actor: ActorContext = Depends(get_actor_context),
+    service: RequirementReviewService = Depends(get_requirement_review_service),
+) -> RequirementFeatureList:
+    _bind_project_audit_scope(request, project_id)
+    return await service.confirm_feature_list(
+        actor=actor,
+        project_id=project_id,
+        feature_list_id=feature_list_id,
+        command=payload,
+    )
+
+
+@router.delete("/feature-lists/{feature_list_id}", response_model=AckResponse)
+async def delete_requirement_feature_list(
+    request: Request,
+    project_id: str,
+    feature_list_id: str,
+    actor: ActorContext = Depends(get_actor_context),
+    service: RequirementReviewService = Depends(get_requirement_review_service),
+) -> AckResponse:
+    _bind_project_audit_scope(request, project_id)
+    await service.delete_feature_list(
+        actor=actor,
+        project_id=project_id,
+        feature_list_id=feature_list_id,
     )
     return AckResponse()
 

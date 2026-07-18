@@ -136,6 +136,67 @@ class UpdateRequirementReviewResultRequest(BaseModel):
     raw_result: dict[str, Any] | None = None
 
 
+class CreateRequirementFeatureListRequest(BaseModel):
+    project_id: str
+    batch_id: str | None = None
+    thread_id: str | None = Field(default=None, max_length=255)
+    idempotency_key: str | None = Field(default=None, max_length=255)
+    decomposable: bool = True
+    undecomposable_reason: str | None = None
+    requirement_text: str = ""
+    requirement_summary: str = ""
+    modules: list[dict[str, Any]] = Field(default_factory=list)
+    open_questions: list[str] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    raw_result: dict[str, Any] = Field(default_factory=dict)
+
+
+class UpdateRequirementFeatureListRequest(BaseModel):
+    batch_id: str | None = None
+    thread_id: str | None = Field(default=None, max_length=255)
+    decomposable: bool | None = None
+    undecomposable_reason: str | None = None
+    requirement_text: str | None = None
+    requirement_summary: str | None = None
+    modules: list[dict[str, Any]] | None = None
+    open_questions: list[str] | None = None
+    assumptions: list[str] | None = None
+    raw_result: dict[str, Any] | None = None
+
+
+class ConfirmRequirementFeatureListRequest(BaseModel):
+    confirmed_by: str | None = Field(default=None, max_length=255)
+    # 乐观校验：调用方声明确认的是哪个版本，不匹配则拒绝
+    expected_version: int | None = Field(default=None, ge=1)
+
+
+class RequirementFeatureListResponse(BaseModel):
+    id: str
+    project_id: str
+    batch_id: str | None
+    thread_id: str | None
+    idempotency_key: str | None
+    version: int
+    status: str
+    decomposable: bool
+    undecomposable_reason: str | None
+    requirement_text: str
+    requirement_summary: str
+    modules: list[dict[str, Any]]
+    open_questions: list[str]
+    assumptions: list[str]
+    raw_result: dict[str, Any]
+    confirmed_at: str | None
+    confirmed_by: str | None
+    created_at: str
+    updated_at: str
+
+
+class RequirementFeatureListListResponse(BaseModel):
+    items: list[RequirementFeatureListResponse]
+    total: int
+
+
 class RequirementReviewOverviewResponse(BaseModel):
     project_id: str | None = None
     documents_total: int

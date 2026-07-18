@@ -103,6 +103,12 @@ const groups = computed(() => {
           requiredPermissions: ['project.runtime.read']
         },
         {
+          to: '/workspace/requirement-review-feature-lists',
+          label: '需求拆解',
+          icon: 'testcase',
+          requiredPermissions: ['project.runtime.read']
+        },
+        {
           to: '/workspace/requirement-review',
           label: '需求评审',
           icon: 'testcase',

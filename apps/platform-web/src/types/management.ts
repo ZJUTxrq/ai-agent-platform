@@ -759,6 +759,46 @@ export type RequirementReviewRole = {
   can_write_requirement_review: boolean
 }
 
+export type RequirementFeaturePoint = {
+  feature_id: string
+  title: string
+  description?: string
+  source_excerpt?: string
+  acceptance_criteria?: string[]
+  constraints?: string[]
+  priority?: string
+  inferred?: boolean
+  open_questions?: string[]
+}
+
+export type RequirementFeatureModule = {
+  name: string
+  description?: string
+  feature_points?: RequirementFeaturePoint[]
+}
+
+export type RequirementFeatureList = {
+  id: string
+  project_id: string
+  batch_id?: string | null
+  thread_id?: string | null
+  idempotency_key?: string | null
+  version: number
+  status: string
+  decomposable: boolean
+  undecomposable_reason?: string | null
+  requirement_text: string
+  requirement_summary: string
+  modules: RequirementFeatureModule[]
+  open_questions: string[]
+  assumptions: string[]
+  raw_result: Record<string, unknown>
+  confirmed_at?: string | null
+  confirmed_by?: string | null
+  created_at: string
+  updated_at: string
+}
+
 export type RequirementReviewBatchDetail = {
   batch: RequirementReviewBatchSummary
   documents: {
